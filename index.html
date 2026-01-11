@@ -1,0 +1,991 @@
+
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grammar Guru - AI英语语法导师</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; }
+        body { background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); min-height: 100vh; display: flex; justify-content: center; align-items: center; padding: 20px; }
+        .container { width: 100%; max-width: 900px; height: 90vh; background: white; border-radius: 24px; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15); overflow: hidden; display: flex; flex-direction: column; }
+        .header { background: linear-gradient(90deg, #4b6cb7 0%, #182848 100%); color: white; padding: 24px 30px; text-align: center; flex-shrink: 0; }
+        .header h1 { font-size: 2.2rem; margin-bottom: 8px; display: flex; align-items: center; justify-content: center; gap: 15px; }
+        .header h1 i { color: #FFD43B; }
+        .header p { opacity: 0.9; font-size: 1.1rem; }
+        .chat-container { flex: 1; overflow-y: auto; padding: 30px; display: flex; flex-direction: column; gap: 25px; }
+        .message { display: flex; max-width: 85%; animation: fadeIn 0.4s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .user-message { align-self: flex-end; flex-direction: row-reverse; }
+        .message-content { padding: 18px 24px; border-radius: 22px; line-height: 1.6; font-size: 1.05rem; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+        .user-message .message-content { background: linear-gradient(90deg, #4776E6, #8E54E9); color: white; border-bottom-right-radius: 6px; }
+        .ai-message .message-content { background: #f0f4f9; color: #333; border-bottom-left-radius: 6px; border: 1px solid #e1e8f0; }
+        .message-icon { width: 50px; height: 50px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.8rem; flex-shrink: 0; margin: 0 15px; box-shadow: 0 6px 10px rgba(0,0,0,0.1); }
+        .user-message .message-icon { background: linear-gradient(90deg, #8E54E9, #4776E6); color: white; }
+        .ai-message .message-icon { background: linear-gradient(90deg, #FF9966, #FF5E62); color: white; }
+        .input-container { padding: 25px 30px; border-top: 1px solid #eaeaea; background: #fff; display: flex; gap: 15px; flex-shrink: 0; }
+        #userInput { flex: 1; padding: 18px 24px; border: 2px solid #e1e8f0; border-radius: 50px; font-size: 1.1rem; outline: none; transition: all 0.3s; }
+        #userInput:focus { border-color: #4b6cb7; box-shadow: 0 0 0 3px rgba(75, 108, 183, 0.2); }
+        .button-group { display: flex; gap: 10px; }
+        .action-button { background: linear-gradient(90deg, #4b6cb7, #182848); color: white; border: none; border-radius: 50%; width: 60px; height: 60px; font-size: 1.8rem; cursor: pointer; transition: all 0.3s; display: flex; align-items: center; justify-content: center; }
+        .action-button:hover { transform: scale(1.05); box-shadow: 0 8px 20px rgba(75, 108, 183, 0.4); }
+        #voiceButton { background: linear-gradient(90deg, #FF9966, #FF5E62); }
+        #voiceButton.recording { background: linear-gradient(90deg, #FF5E62, #FF0000); animation: pulse 1.5s infinite; }
+        #voiceButton.disabled { background: #cccccc !important; cursor: not-allowed; opacity: 0.6; }
+        @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(255, 94, 98, 0.7); } 70% { box-shadow: 0 0 0 15px rgba(255, 94, 98, 0); } 100% { box-shadow: 0 0 0 0 rgba(255, 94, 98, 0); } }
+        
+        /* TTS按钮样式 */
+        #ttsButton { background: linear-gradient(90deg, #36D1DC, #5B86E5); }
+        #ttsButton.speaking { background: linear-gradient(90deg, #5B86E5, #36D1DC); animation: ttsPulse 1.5s infinite; }
+        @keyframes ttsPulse { 0% { box-shadow: 0 0 0 0 rgba(91, 134, 229, 0.7); } 70% { box-shadow: 0 0 0 15px rgba(91, 134, 229, 0); } 100% { box-shadow: 0 0 0 0 rgba(91, 134, 229, 0); } }
+        
+        .typing-indicator { display: none; padding: 15px 25px; background: #f0f4f9; border-radius: 22px; align-self: flex-start; margin-bottom: 10px; border: 1px solid #e1e8f0; }
+        .typing-dots { display: flex; gap: 8px; }
+        .typing-dots span { width: 10px; height: 10px; background: #8E54E9; border-radius: 50%; animation: bounce 1.5s infinite ease-in-out; }
+        .typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+        .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes bounce { 0%, 60%, 100% { transform: translateY(0); } 30% { transform: translateY(-10px); } }
+        
+        /* 状态指示器样式 */
+        .status-indicator { 
+            position: fixed; 
+            top: 20px; 
+            right: 20px; 
+            background: #4CAF50; 
+            color: white; 
+            padding: 12px 24px; 
+            border-radius: 25px; 
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15); 
+            display: none; 
+            z-index: 1000;
+            max-width: 400px;
+            text-align: center;
+        }
+        .status-indicator.error { background: #FF5E62 !important; }
+        .status-indicator.warning { background: #FF9800 !important; }
+        
+        /* 消息操作按钮 */
+        .message-actions { display: flex; gap: 8px; margin-top: 10px; }
+        .message-action-btn { background: rgba(255,255,255,0.9); border: 1px solid #e1e8f0; border-radius: 15px; padding: 5px 12px; font-size: 0.85rem; cursor: pointer; transition: all 0.2s; color: #4b6cb7; }
+        .message-action-btn:hover { background: #4b6cb7; color: white; }
+        .ai-message .message-action-btn { background: #e9eff7; }
+        
+        /* 权限提示框 */
+        .permission-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+            display: none;
+        }
+        .permission-content {
+            background: white;
+            padding: 30px;
+            border-radius: 20px;
+            max-width: 500px;
+            width: 90%;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        .permission-content h3 {
+            color: #4b6cb7;
+            margin-bottom: 15px;
+            font-size: 1.5rem;
+        }
+        .permission-content p {
+            margin-bottom: 20px;
+            line-height: 1.6;
+            color: #555;
+        }
+        .permission-buttons {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+        }
+        .permission-btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 500;
+            transition: all 0.3s;
+        }
+        .permission-btn.primary {
+            background: linear-gradient(90deg, #4b6cb7, #182848);
+            color: white;
+        }
+        .permission-btn.secondary {
+            background: #f0f4f9;
+            color: #4b6cb7;
+            border: 2px solid #e1e8f0;
+        }
+        .permission-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        
+        /* 语音指南 */
+        .voice-guide {
+            background: #e8f4ff;
+            border-left: 4px solid #4b6cb7;
+            padding: 15px 20px;
+            margin: 15px 0;
+            border-radius: 0 10px 10px 0;
+        }
+        .voice-guide h4 {
+            color: #182848;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .voice-guide ul {
+            margin-left: 25px;
+            color: #555;
+        }
+        .voice-guide li {
+            margin-bottom: 5px;
+        }
+        
+        @media (max-width: 768px) { 
+            .container { height: 95vh; border-radius: 20px; } 
+            .header { padding: 20px; } 
+            .header h1 { font-size: 1.8rem; } 
+            .chat-container { padding: 20px; } 
+            .message { max-width: 95%; } 
+            .message-icon { width: 45px; height: 45px; margin: 0 10px; } 
+            .action-button { width: 55px; height: 55px; }
+            .button-group { gap: 8px; }
+            .status-indicator { top: 10px; right: 10px; left: 10px; max-width: none; }
+            .permission-content { width: 95%; padding: 20px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="status-indicator" id="statusIndicator"></div>
+    
+    <!-- 权限提示模态框 -->
+    <div class="permission-modal" id="permissionModal">
+        <div class="permission-content">
+            <h3><i class="fas fa-microphone"></i> 启用语音输入功能</h3>
+            <p>要使用语音提问功能，您需要允许网站访问您的麦克风。</p>
+            <p>请按照以下步骤操作：</p>
+            <div class="voice-guide">
+                <h4><i class="fas fa-chrome"></i> Chrome/Edge浏览器：</h4>
+                <ul>
+                    <li>点击地址栏左侧的锁形图标或"不安全"字样</li>
+                    <li>在"麦克风"选项中选择"允许"</li>
+                    <li>刷新页面后重试</li>
+                </ul>
+            </div>
+            <div class="voice-guide">
+                <h4><i class="fas fa-safari"></i> Safari浏览器：</h4>
+                <ul>
+                    <li>前往 Safari > 设置 > 网站</li>
+                    <li>在左侧选择"麦克风"</li>
+                    <li>找到本网站并设置为"允许"</li>
+                </ul>
+            </div>
+            <div class="permission-buttons">
+                <button class="permission-btn primary" id="requestPermissionBtn">立即请求权限</button>
+                <button class="permission-btn secondary" id="closePermissionBtn">稍后再说</button>
+            </div>
+        </div>
+    </div>
+    
+    <div class="container">
+        <div class="header">
+            <h1><i class="fas fa-graduation-cap"></i> Grammar Guru - AI英语语法导师</h1>
+            <p>我是您的AI语法助教，很高兴为您服务！请随时问我任何英语语法问题。</p>
+        </div>
+        <div class="chat-container" id="chatContainer">
+            <div class="message ai-message">
+                <div class="message-icon"><i class="fas fa-robot"></i></div>
+                <div class="message-content">
+                    <p>Hello there! 你好！</p>
+                    <p>我是Grammar Guru，您的专属AI英语语法导师。我由<strong>龚凤乾教授</strong>设计，旨在帮助您透彻掌握英语语法。</p>
+                    <p><strong>Language Selection Rule 语言选择规则：</strong></p>
+                    <ul style="margin-left: 20px; margin-top: 10px;">
+                        <li>如果您用<strong>英语</strong>提问，我将用<strong>英语</strong>回复</li>
+                        <li>如果您用<strong>中文</strong>提问，我将用<strong>中文</strong>回复</li>
+                        <li>TTS朗读将自动匹配回复语言</li>
+                    </ul>
+                    <p><strong>例如，您可以这样问我：</strong></p>
+                    <ul style="margin-left: 20px; margin-top: 10px;">
+                        <li>"现在完成时和过去时有什么区别？"</li>
+                        <li>"Could you explain the subjunctive mood in English?"</li>
+                        <li>"请用例子说明定语从句的用法。"</li>
+                        <li>"What's the difference between 'few' and 'a few'?"</li>
+                    </ul>
+                    <div class="voice-guide">
+                        <h4><i class="fas fa-microphone"></i> 语音输入使用指南：</h4>
+                        <ul>
+                            <li>点击红色麦克风按钮开始语音提问</li>
+                            <li>首次使用需要允许麦克风权限</li>
+                            <li>支持中文和英文语音识别</li>
+                            <li>说话清晰，避免背景噪音</li>
+                            <li>点击蓝色扬声器按钮朗读AI回复</li>
+                        </ul>
+                    </div>
+                    <p>请随时提出您的语法疑问，让我们开始吧！</p>
+                </div>
+            </div>
+        </div>
+        <div class="typing-indicator" id="typingIndicator">
+            <div class="typing-dots"><span></span><span></span><span></span></div>
+        </div>
+        <div class="input-container">
+            <input type="text" id="userInput" placeholder="请输入您的语法问题（中英文皆可）或使用语音输入..." autocomplete="off">
+            <div class="button-group">
+                <button class="action-button" id="voiceButton" title="语音输入"><i class="fas fa-microphone"></i></button>
+                <button class="action-button" id="sendButton" title="发送消息"><i class="fas fa-paper-plane"></i></button>
+                <button class="action-button" id="ttsButton" title="朗读最后一条AI回复"><i class="fas fa-volume-up"></i></button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+// 配置 - 请替换为您的DeepSeek API密钥
+const DEEPSEEK_API_KEY = "sk-cd14da7add11408c8c8282f8d678c1d0";
+const API_URL = "https://api.deepseek.com/v1/chat/completions";
+
+// DOM 元素
+const chatContainer = document.getElementById('chatContainer');
+const userInput = document.getElementById('userInput');
+const sendButton = document.getElementById('sendButton');
+const voiceButton = document.getElementById('voiceButton');
+const ttsButton = document.getElementById('ttsButton');
+const typingIndicator = document.getElementById('typingIndicator');
+const statusIndicator = document.getElementById('statusIndicator');
+const permissionModal = document.getElementById('permissionModal');
+const requestPermissionBtn = document.getElementById('requestPermissionBtn');
+const closePermissionBtn = document.getElementById('closePermissionBtn');
+
+// TTS相关变量
+let currentSpeech = null;
+let isSpeaking = false;
+let lastAiMessage = null;
+let lastAiMessageLanguage = 'en'; // 记录最后一条AI消息的语言
+
+// 语音识别相关
+let recognition = null;
+let isRecording = false;
+let speechSupported = false;
+
+// 系统提示词 - 根据用户输入语言动态选择
+function getSystemPrompt(userLanguage) {
+    if (userLanguage === 'zh') {
+        return `你是一位专业的英语语法导师，名叫"Grammar Guru"，由龚凤乾教授创建。
+
+**核心规则：**
+1. 如果用户用中文提问，你必须用中文回复
+2. 如果用户用英文提问，你必须用英文回复
+3. 无论用户使用哪种语言，你的回复都要保持专业、清晰、准确
+4. 对于中文提问，用中文解释语法点，提供中文例句
+5. 对于英文提问，用英文解释语法点，提供英文例句
+6. 解释语法点时，给出清晰定义、实用例句、常见错误
+
+现在开始帮助学生学习英语语法！`;
+    } else {
+        return `You are a professional English grammar tutor called "Grammar Guru", created by Professor Gong Fengqian.
+
+**Core Rules:**
+1. If the user asks in Chinese, you MUST respond in Chinese
+2. If the user asks in English, you MUST respond in English
+3. Regardless of the user's language, your responses must be professional, clear, and accurate
+4. For Chinese questions, explain grammar points in Chinese with Chinese examples
+5. For English questions, explain grammar points in English with English examples
+6. When explaining grammar points, provide clear definitions, practical examples, and common mistakes
+
+Now begin helping students with English grammar!`;
+    }
+}
+
+// 初始化对话历史（将在发送消息时根据用户语言动态设置）
+let conversationHistory = [];
+
+// ==================== 显示状态提示 ====================
+function showStatus(message, type = 'success', duration = 3000) {
+    statusIndicator.textContent = message;
+    statusIndicator.className = 'status-indicator';
+    
+    if (type === 'error') {
+        statusIndicator.classList.add('error');
+    } else if (type === 'warning') {
+        statusIndicator.classList.add('warning');
+    }
+    
+    statusIndicator.style.display = 'block';
+    setTimeout(() => {
+        statusIndicator.style.display = 'none';
+        statusIndicator.classList.remove('error', 'warning');
+    }, duration);
+}
+
+// ==================== 检测用户输入语言 ====================
+function detectUserLanguage(text) {
+    if (!text) return 'en';
+    
+    const chineseCharCount = (text.match(/[\u4e00-\u9fa5]/g) || []).length;
+    const englishCharCount = (text.match(/[a-zA-Z]/g) || []).length;
+    
+    // 如果有中文且中文字符数量多于英文
+    if (chineseCharCount > 0 && chineseCharCount >= englishCharCount) {
+        return 'zh';
+    }
+    
+    // 如果有英文且英文字符数量多于中文
+    if (englishCharCount > 0 && englishCharCount > chineseCharCount) {
+        return 'en';
+    }
+    
+    // 默认英文
+    return 'en';
+}
+
+// ==================== 检测文本主要语言 ====================
+function detectTextLanguage(text) {
+    return detectUserLanguage(text);
+}
+
+// ==================== TTS功能改进版 ====================
+
+// 彻底清理文本，移除所有符号和标点
+function cleanTextForTTS(text) {
+    if (!text) return '';
+    
+    // 1. 移除HTML标签
+    let cleaned = text.replace(/<[^>]*>/g, ' ');
+    
+    // 2. 移除所有Markdown格式符号
+    cleaned = cleaned.replace(/[*_~`#\-=]/g, ' ');
+    
+    // 3. 移除所有括号及其内容（保留括号内的文本）
+    cleaned = cleaned.replace(/[\(\)\[\]\{\}]/g, ' ');
+    
+    // 4. 移除所有特殊符号和标点
+    cleaned = cleaned.replace(/[\/\\|@$%^&<>"':;]/g, ' ');
+    
+    // 5. 将逗号、分号、冒号等转换为停顿
+    cleaned = cleaned.replace(/[,;:]/g, ' ');
+    
+    // 6. 处理引号
+    cleaned = cleaned.replace(/["']/g, ' ');
+    
+    // 7. 移除数字序号（如 1. 2. 等）
+    cleaned = cleaned.replace(/\d+\.\s*/g, ' ');
+    
+    // 8. 移除项目符号
+    cleaned = cleaned.replace(/[•·●■□▲►▼◆◇]/g, ' ');
+    
+    // 9. 处理省略号
+    cleaned = cleaned.replace(/\.{2,}/g, '。');
+    
+    // 10. 移除多余的空白字符
+    cleaned = cleaned.replace(/\s+/g, ' ');
+    
+    // 11. 处理中英文标点
+    cleaned = cleaned.replace(/[，。；：！？、]/g, ' ');
+    
+    // 12. 去除首尾空格并确保文本不为空
+    cleaned = cleaned.trim();
+    
+    // 如果清理后为空，返回原始文本的纯文字版本
+    if (!cleaned || cleaned.length < 3) {
+        cleaned = text.replace(/<[^>]*>/g, ' ')
+                      .replace(/[^\w\u4e00-\u9fa5\s]/g, ' ')
+                      .replace(/\s+/g, ' ')
+                      .trim();
+    }
+    
+    return cleaned;
+}
+
+// 检查浏览器TTS支持
+function checkTTSsupport() {
+    if (!('speechSynthesis' in window)) {
+        console.warn('浏览器不支持语音合成API');
+        ttsButton.style.display = 'none';
+        showStatus('您的浏览器不支持文本转语音功能', 'error');
+        return false;
+    }
+    
+    return true;
+}
+
+// 朗读文本（改进版）
+function speakText(text, language = null) {
+    if (!text) {
+        showStatus('没有文本可朗读', 'error');
+        return;
+    }
+    
+    stopSpeaking();
+    
+    const cleanText = cleanTextForTTS(text);
+    
+    if (!cleanText || cleanText.trim().length < 3) {
+        showStatus('文本过短或无法朗读', 'error');
+        return;
+    }
+    
+    try {
+        currentSpeech = new SpeechSynthesisUtterance(cleanText);
+        
+        currentSpeech.volume = 1.0;
+        currentSpeech.rate = 1.0;
+        currentSpeech.pitch = 1.0;
+        
+        // 获取可用语音列表
+        const voices = speechSynthesis.getVoices();
+        if (voices.length > 0) {
+            // 使用指定的语言或检测语言
+            const detectedLang = language || detectTextLanguage(cleanText);
+            
+            // 根据语言选择语音
+            let selectedVoice = voices[0];
+            let targetLang = detectedLang === 'zh' ? 'zh-CN' : 'en-US';
+            
+            // 首先尝试找到完全匹配的语言
+            for (let voice of voices) {
+                if (voice.lang === targetLang) {
+                    selectedVoice = voice;
+                    break;
+                }
+            }
+            
+            // 如果没找到，尝试找语言代码开头的
+            if (selectedVoice === voices[0]) {
+                for (let voice of voices) {
+                    if (voice.lang.startsWith(detectedLang === 'zh' ? 'zh' : 'en')) {
+                        selectedVoice = voice;
+                        break;
+                    }
+                }
+            }
+            
+            // 设置语音和语言
+            currentSpeech.voice = selectedVoice;
+            currentSpeech.lang = selectedVoice.lang;
+            
+            // 根据语言调整语速
+            if (detectedLang === 'zh') {
+                currentSpeech.rate = 0.9; // 中文稍慢
+            } else {
+                currentSpeech.rate = 1.0; // 英文正常
+            }
+        } else {
+            // 根据检测的语言设置默认语言
+            const detectedLang = language || detectTextLanguage(cleanText);
+            currentSpeech.lang = detectedLang === 'zh' ? 'zh-CN' : 'en-US';
+        }
+        
+        currentSpeech.onstart = () => {
+            isSpeaking = true;
+            ttsButton.classList.add('speaking');
+            ttsButton.innerHTML = '<i class="fas fa-stop"></i>';
+            
+            const langText = currentSpeech.lang.startsWith('zh') ? '中文' : 'English';
+            showStatus(`Reading AI response in ${langText}...`, 'success', 2000);
+        };
+        
+        currentSpeech.onend = () => {
+            isSpeaking = false;
+            ttsButton.classList.remove('speaking');
+            ttsButton.innerHTML = '<i class="fas fa-volume-up"></i>';
+            showStatus('朗读完成', 'success', 2000);
+        };
+        
+        currentSpeech.onerror = (event) => {
+            isSpeaking = false;
+            ttsButton.classList.remove('speaking');
+            ttsButton.innerHTML = '<i class="fas fa-volume-up"></i>';
+            showStatus('朗读出错，请重试', 'error');
+        };
+        
+        speechSynthesis.speak(currentSpeech);
+        
+    } catch (error) {
+        showStatus('朗读功能出错: ' + error.message, 'error');
+        isSpeaking = false;
+        ttsButton.classList.remove('speaking');
+        ttsButton.innerHTML = '<i class="fas fa-volume-up"></i>';
+    }
+}
+
+// 停止朗读
+function stopSpeaking() {
+    if (speechSynthesis.speaking) {
+        speechSynthesis.cancel();
+        isSpeaking = false;
+        ttsButton.classList.remove('speaking');
+        ttsButton.innerHTML = '<i class="fas fa-volume-up"></i>';
+    }
+}
+
+// 切换朗读
+function toggleTTS() {
+    if (isSpeaking) {
+        stopSpeaking();
+    } else {
+        const aiMessages = chatContainer.querySelectorAll('.ai-message .message-content');
+        if (aiMessages.length === 0) {
+            showStatus('没有AI回复可朗读', 'error');
+            return;
+        }
+        
+        const lastMessage = aiMessages[aiMessages.length - 1];
+        const text = lastMessage.textContent || lastMessage.innerText;
+        
+        if (text && text.trim().length > 0) {
+            lastAiMessage = text;
+            // 使用记录的语言进行朗读
+            speakText(text, lastAiMessageLanguage);
+        } else {
+            showStatus('没有找到可朗读的文本', 'error');
+        }
+    }
+}
+
+// 为AI消息添加朗读按钮
+function addTTSToMessage(messageElement, text, language) {
+    const messageContent = messageElement.querySelector('.message-content');
+    if (!messageContent) return;
+    
+    // 检查是否已有操作按钮
+    if (messageContent.querySelector('.message-actions')) return;
+    
+    const actionsDiv = document.createElement('div');
+    actionsDiv.className = 'message-actions';
+    
+    const ttsBtn = document.createElement('button');
+    ttsBtn.className = 'message-action-btn';
+    ttsBtn.innerHTML = language === 'zh' ? '<i class="fas fa-volume-up"></i> 朗读此条' : '<i class="fas fa-volume-up"></i> Read Aloud';
+    ttsBtn.title = '朗读此条消息';
+    ttsBtn.onclick = () => {
+        speakText(text, language);
+    };
+    
+    actionsDiv.appendChild(ttsBtn);
+    messageContent.appendChild(actionsDiv);
+}
+
+// ==================== 语音识别功能改进版 ====================
+
+// 检查浏览器是否支持语音识别
+function checkSpeechRecognitionSupport() {
+    const isChrome = /Chrome/.test(navigator.userAgent) && /Google Inc/.test(navigator.vendor);
+    const isEdge = /Edg/.test(navigator.userAgent);
+    
+    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+        voiceButton.classList.add('disabled');
+        voiceButton.title = '您的浏览器不支持语音识别';
+        
+        if (!isChrome && !isEdge) {
+            showStatus('推荐使用Chrome或Edge浏览器以获得最佳语音体验', 'warning', 5000);
+        }
+        
+        speechSupported = false;
+        return false;
+    }
+    
+    speechSupported = true;
+    return true;
+}
+
+// 初始化语音识别
+function initSpeechRecognition() {
+    if (!speechSupported) {
+        return false;
+    }
+    
+    try {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        recognition = new SpeechRecognition();
+        
+        recognition.continuous = false;
+        recognition.interimResults = false;
+        recognition.lang = navigator.language.startsWith('zh') ? 'zh-CN' : 'en-US';
+        recognition.maxAlternatives = 1;
+        
+        recognition.onstart = () => {
+            isRecording = true;
+            voiceButton.classList.add('recording');
+            voiceButton.innerHTML = '<i class="fas fa-stop"></i>';
+            showStatus('正在聆听...请清晰说话', 'success', 5000);
+            
+            // 自动停止保护，10秒后自动停止
+            setTimeout(() => {
+                if (isRecording && recognition) {
+                    recognition.stop();
+                }
+            }, 10000);
+        };
+        
+        recognition.onresult = (event) => {
+            if (event.results && event.results.length > 0) {
+                const transcript = event.results[0][0].transcript;
+                
+                if (transcript.trim().length > 0) {
+                    userInput.value = transcript;
+                    showStatus('识别完成，按Enter键发送或继续说话', 'success', 3000);
+                    
+                    // 自动发送短句（少于5个词）
+                    const wordCount = transcript.split(/\s+/).length;
+                    if (wordCount <= 5 && transcript.includes('?')) {
+                        setTimeout(() => {
+                            sendMessage();
+                        }, 1000);
+                    }
+                }
+            }
+        };
+        
+        recognition.onerror = (event) => {
+            let message = '语音识别错误';
+            
+            switch(event.error) {
+                case 'not-allowed':
+                case 'permission-denied':
+                    message = '麦克风权限被拒绝';
+                    voiceButton.classList.add('disabled');
+                    voiceButton.title = '点击请求麦克风权限';
+                    showPermissionModal();
+                    break;
+                case 'no-speech':
+                    message = '没有检测到语音，请重试';
+                    break;
+                case 'audio-capture':
+                    message = '无法访问麦克风，请检查设备连接';
+                    break;
+                case 'network':
+                    message = '网络错误，请检查网络连接';
+                    break;
+                default:
+                    message = `语音识别错误: ${event.error}`;
+            }
+            
+            showStatus(message, 'error', 4000);
+            resetVoiceButton();
+        };
+        
+        recognition.onend = () => {
+            resetVoiceButton();
+        };
+        
+        return true;
+        
+    } catch (error) {
+        voiceButton.classList.add('disabled');
+        voiceButton.title = '语音识别初始化失败';
+        showStatus('语音识别功能初始化失败', 'error');
+        speechSupported = false;
+        return false;
+    }
+}
+
+// 重置语音按钮状态
+function resetVoiceButton() {
+    isRecording = false;
+    voiceButton.classList.remove('recording');
+    voiceButton.innerHTML = '<i class="fas fa-microphone"></i>';
+}
+
+// 检查麦克风权限
+async function checkMicrophonePermission() {
+    try {
+        if (navigator.permissions && navigator.permissions.query) {
+            const permissionStatus = await navigator.permissions.query({ name: 'microphone' });
+            
+            if (permissionStatus.state === 'denied') {
+                voiceButton.classList.add('disabled');
+                voiceButton.title = '麦克风权限被拒绝，点击查看解决方法';
+                showStatus('麦克风访问被拒绝，请允许权限使用语音输入', 'warning', 5000);
+                showPermissionModal();
+            } else if (permissionStatus.state === 'granted') {
+                voiceButton.classList.remove('disabled');
+                voiceButton.title = '语音输入';
+            }
+            
+            permissionStatus.onchange = () => {
+                if (permissionStatus.state === 'granted') {
+                    voiceButton.classList.remove('disabled');
+                    voiceButton.title = '语音输入';
+                    showStatus('麦克风权限已获得！现在可以使用语音输入', 'success');
+                    initSpeechRecognition();
+                } else if (permissionStatus.state === 'denied') {
+                    voiceButton.classList.add('disabled');
+                    voiceButton.title = '麦克风权限被拒绝，点击查看解决方法';
+                }
+            };
+        }
+    } catch (err) {
+        // 如果权限API不可用，我们仍然尝试直接初始化
+    }
+}
+
+// 显示权限提示模态框
+function showPermissionModal() {
+    permissionModal.style.display = 'flex';
+}
+
+// 关闭权限提示模态框
+function closePermissionModal() {
+    permissionModal.style.display = 'none';
+}
+
+// 请求麦克风权限
+async function requestMicrophonePermission() {
+    try {
+        // 先尝试通过getUserMedia请求权限
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        
+        // 立即停止流，我们只需要权限
+        stream.getTracks().forEach(track => track.stop());
+        
+        closePermissionModal();
+        
+        // 更新按钮状态
+        voiceButton.classList.remove('disabled');
+        voiceButton.title = '语音输入';
+        
+        // 重新初始化语音识别
+        if (speechSupported) {
+            initSpeechRecognition();
+        }
+        
+        showStatus('麦克风权限已获得！现在可以使用语音输入', 'success');
+        
+        return true;
+        
+    } catch (error) {
+        let errorMessage = '无法访问麦克风';
+        if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
+            errorMessage = '权限被拒绝，请在浏览器设置中手动允许麦克风访问';
+        } else if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
+            errorMessage = '未找到麦克风设备，请检查设备连接';
+        } else if (error.name === 'NotSupportedError') {
+            errorMessage = '您的浏览器不支持麦克风访问';
+        } else if (error.name === 'NotReadableError' || error.name === 'TrackStartError') {
+            errorMessage = '麦克风被其他应用占用，请关闭其他使用麦克风的程序';
+        }
+        
+        showStatus(errorMessage, 'error', 5000);
+        
+        // 保持模态框打开以显示解决方法
+        return false;
+    }
+}
+
+// 切换语音识别
+function toggleVoiceRecognition() {
+    // 如果按钮被禁用，显示权限提示
+    if (voiceButton.classList.contains('disabled')) {
+        showPermissionModal();
+        return;
+    }
+    
+    if (!speechSupported) {
+        showStatus('您的浏览器不支持语音识别', 'error');
+        return;
+    }
+    
+    if (!recognition) {
+        if (!initSpeechRecognition()) {
+            showStatus('语音识别初始化失败', 'error');
+            return;
+        }
+    }
+    
+    if (isRecording) {
+        recognition.stop();
+    } else {
+        try {
+            recognition.start();
+        } catch (error) {
+            // 如果权限错误，显示提示
+            if (error.name === 'NotAllowedError') {
+                voiceButton.classList.add('disabled');
+                voiceButton.title = '麦克风权限被拒绝，点击查看解决方法';
+                showPermissionModal();
+            } else {
+                showStatus('启动语音识别失败: ' + error.message, 'error');
+            }
+        }
+    }
+}
+
+// ==================== 主要聊天功能 ====================
+
+// 发送消息函数
+async function sendMessage() {
+    const userText = userInput.value.trim();
+    if (!userText) {
+        showStatus('请输入问题内容', 'error');
+        return;
+    }
+
+    // 检测用户输入语言
+    const userLanguage = detectUserLanguage(userText);
+    
+    addMessageToChat(userText, 'user');
+    userInput.value = '';
+    userInput.focus();
+    
+    typingIndicator.style.display = 'block';
+    chatContainer.scrollTop = chatContainer.scrollHeight;
+
+    // 根据用户语言动态设置系统提示
+    conversationHistory = [
+        { role: "system", content: getSystemPrompt(userLanguage) }
+    ];
+    
+    // 添加用户消息
+    conversationHistory.push({ role: "user", content: userText });
+
+    try {
+        const response = await fetch(API_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${DEEPSEEK_API_KEY}`
+            },
+            body: JSON.stringify({
+                model: "deepseek-chat",
+                messages: conversationHistory,
+                max_tokens: 2000,
+                temperature: 0.7
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error(`API请求失败: ${response.status}`);
+        }
+
+        const data = await response.json();
+        const aiResponse = data.choices[0].message.content;
+
+        // 记录AI回复的语言
+        lastAiMessageLanguage = userLanguage; // AI回复语言与用户提问语言一致
+        
+        conversationHistory.push({ role: "assistant", content: aiResponse });
+        const messageElement = addMessageToChat(aiResponse, 'ai');
+        
+        // 添加朗读按钮，使用对应的语言
+        addTTSToMessage(messageElement, aiResponse, userLanguage);
+        
+        const successMsg = userLanguage === 'zh' ? 'AI回复已收到' : 'AI response received';
+        showStatus(successMsg, 'success');
+
+    } catch (error) {
+        const errorMsg = error.message.includes('Failed to fetch') 
+            ? '网络连接失败，请检查网络'
+            : error.message;
+        
+        const messageElement = addMessageToChat(`抱歉，我遇到了一个问题：${errorMsg}。`, 'ai');
+        addTTSToMessage(messageElement, `抱歉，我遇到了一个问题：${errorMsg}。`, 'zh');
+        showStatus('请求出错: ' + errorMsg, 'error');
+    } finally {
+        typingIndicator.style.display = 'none';
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+}
+
+// 将消息添加到聊天界面
+function addMessageToChat(text, sender) {
+    const messageDiv = document.createElement('div');
+    messageDiv.className = `message ${sender}-message`;
+    
+    const iconDiv = document.createElement('div');
+    iconDiv.className = 'message-icon';
+    iconDiv.innerHTML = sender === 'user' ? '<i class="fas fa-user"></i>' : '<i class="fas fa-robot"></i>';
+    
+    const contentDiv = document.createElement('div');
+    contentDiv.className = 'message-content';
+    
+    let formattedText = text
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\n/g, '<br>');
+    
+    contentDiv.innerHTML = formattedText;
+    messageDiv.appendChild(iconDiv);
+    messageDiv.appendChild(contentDiv);
+    chatContainer.appendChild(messageDiv);
+    chatContainer.scrollTop = chatContainer.scrollHeight;
+    
+    if (sender === 'ai') {
+        lastAiMessage = text;
+    }
+    
+    return messageDiv;
+}
+
+// ==================== 事件监听 ====================
+
+sendButton.addEventListener('click', sendMessage);
+userInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+    }
+});
+voiceButton.addEventListener('click', toggleVoiceRecognition);
+ttsButton.addEventListener('click', toggleTTS);
+requestPermissionBtn.addEventListener('click', requestMicrophonePermission);
+closePermissionBtn.addEventListener('click', closePermissionModal);
+
+// 页面卸载时停止所有语音
+window.addEventListener('beforeunload', () => {
+    stopSpeaking();
+    if (speechSynthesis.speaking) {
+        speechSynthesis.cancel();
+    }
+});
+
+// 点击模态框外部关闭
+permissionModal.addEventListener('click', (e) => {
+    if (e.target === permissionModal) {
+        closePermissionModal();
+    }
+});
+
+// ==================== 初始加载 ====================
+
+userInput.focus();
+showStatus('Grammar Guru 已就绪，请开始提问！', 'success', 3000);
+
+// 检查浏览器支持
+document.addEventListener('DOMContentLoaded', () => {
+    // 检查语音识别支持
+    checkSpeechRecognitionSupport();
+    
+    // 检查TTS支持
+    if (checkTTSsupport()) {
+        // 加载语音列表
+        speechSynthesis.getVoices();
+        speechSynthesis.onvoiceschanged = () => {
+            console.log('语音列表已加载');
+        };
+    }
+    
+    // 延迟检查权限和初始化
+    setTimeout(() => {
+        checkMicrophonePermission();
+        
+        // 如果支持语音，尝试初始化
+        if (speechSupported) {
+            initSpeechRecognition();
+        }
+    }, 1000);
+});
+    </script>
+</body>
+</html>

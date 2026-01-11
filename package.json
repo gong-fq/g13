@@ -1,0 +1,24 @@
+{
+  "name": "grammar-guru-netlify",
+  "version": "1.0.0",
+  "description": "Grammar Guru - AI英语语法导师 Netlify部署版本",
+  "main": "index.html",
+  "scripts": {
+    "dev": "netlify dev",
+    "build": "echo 'Static site, no build needed'",
+    "deploy": "netlify deploy --prod"
+  },
+  "keywords": [
+    "ai",
+    "grammar",
+    "english",
+    "tutor",
+    "netlify"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {},
+  "devDependencies": {
+    "netlify-cli": "^17.0.0"
+  }
+}
