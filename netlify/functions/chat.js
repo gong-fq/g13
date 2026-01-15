@@ -1,25 +1,49 @@
 // Netlify Serverless Function - 支持流式响应
-// 如果你需要隐藏 API key 或添加后端逻辑，可以使用此 function
+// 将此文件放置在项目的 netlify/functions/chat.js
 
 exports.handler = async (event, context) => {
+  // 处理CORS预检请求
+  if (event.httpMethod === 'OPTIONS') {
+    return {
+      statusCode: 200,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'Content-Type',
+        'Access-Control-Allow-Methods': 'POST, OPTIONS'
+      },
+      body: ''
+    };
+  }
+
   // 只允许 POST 请求
   if (event.httpMethod !== 'POST') {
     return {
       statusCode: 405,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Content-Type': 'application/json'
+      },
       body: JSON.stringify({ error: 'Method Not Allowed' })
     };
   }
 
   try {
-    const { messages, model = 'deepseek-chat', stream = false } = JSON.parse(event.body);
+    const { messages, model = 'deepseek-chat', stream = true } = JSON.parse(event.body);
 
-    // 从环境变量读取 API key（推荐做法）
+    // 从环境变量读取 API key（在Netlify后台配置）
     const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY;
 
     if (!DEEPSEEK_API_KEY) {
       return {
         statusCode: 500,
-        body: JSON.stringify({ error: 'API key not configured' })
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ 
+          error: 'API key not configured',
+          message: '请在Netlify后台配置DEEPSEEK_API_KEY环境变量'
+        })
       };
     }
 
@@ -40,11 +64,16 @@ exports.handler = async (event, context) => {
     });
 
     if (!response.ok) {
+      const errorText = await response.text();
+      console.error('DeepSeek API error:', response.status, errorText);
       throw new Error(`DeepSeek API error: ${response.status}`);
     }
 
-    // 如果是流式响应，直接转发stream
+    // 如果是流式响应
     if (stream) {
+      // 获取响应体
+      const responseBody = await response.text();
+      
       return {
         statusCode: 200,
         headers: {
@@ -54,12 +83,11 @@ exports.handler = async (event, context) => {
           'Access-Control-Allow-Origin': '*',
           'Access-Control-Allow-Headers': 'Content-Type'
         },
-        body: response.body,
-        isBase64Encoded: false
+        body: responseBody
       };
     }
 
-    // 非流式响应，返回完整JSON
+    // 非流式响应
     const data = await response.json();
 
     return {
@@ -73,6 +101,7 @@ exports.handler = async (event, context) => {
     };
 
   } catch (error) {
+    console.error('Function error:', error);
     return {
       statusCode: 500,
       headers: {
