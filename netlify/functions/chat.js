@@ -1,4 +1,4 @@
-// Netlify Serverless Function 示例
+// Netlify Serverless Function - 支持流式响应
 // 如果你需要隐藏 API key 或添加后端逻辑，可以使用此 function
 
 exports.handler = async (event, context) => {
@@ -11,7 +11,7 @@ exports.handler = async (event, context) => {
   }
 
   try {
-    const { messages, model = 'deepseek-chat' } = JSON.parse(event.body);
+    const { messages, model = 'deepseek-chat', stream = false } = JSON.parse(event.body);
 
     // 从环境变量读取 API key（推荐做法）
     const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY;
@@ -23,13 +23,8 @@ exports.handler = async (event, context) => {
       };
     }
 
-    // 设置超时（5秒）
-    const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('DeepSeek API请求超时')), 5000);
-    });
-
     // 调用 DeepSeek API
-    const fetchPromise = fetch('https://api.deepseek.com/v1/chat/completions', {
+    const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -38,14 +33,33 @@ exports.handler = async (event, context) => {
       body: JSON.stringify({
         model: model,
         messages: messages,
-        max_tokens: 800, // 减少返回长度以加快速度
-        temperature: 0.7
+        max_tokens: 2000,
+        temperature: 0.7,
+        stream: stream
       })
     });
 
-    // 使用Promise.race，如果5秒内没有响应，就抛出超时错误
-    const response = await Promise.race([fetchPromise, timeoutPromise]);
+    if (!response.ok) {
+      throw new Error(`DeepSeek API error: ${response.status}`);
+    }
 
+    // 如果是流式响应，直接转发stream
+    if (stream) {
+      return {
+        statusCode: 200,
+        headers: {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          'Connection': 'keep-alive',
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Headers': 'Content-Type'
+        },
+        body: response.body,
+        isBase64Encoded: false
+      };
+    }
+
+    // 非流式响应，返回完整JSON
     const data = await response.json();
 
     return {
@@ -59,7 +73,6 @@ exports.handler = async (event, context) => {
     };
 
   } catch (error) {
-    console.error('Function error:', error);
     return {
       statusCode: 500,
       headers: {

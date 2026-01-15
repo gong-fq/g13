@@ -823,7 +823,7 @@ function toggleVoiceRecognition() {
 
 // ==================== 主要聊天功能 ====================
 
-// 发送消息函数
+// 发送消息函数（启用DeepSeek流式响应）
 async function sendMessage() {
     const userText = userInput.value.trim();
     if (!userText) {
@@ -831,7 +831,6 @@ async function sendMessage() {
         return;
     }
 
-    // 检测用户输入语言
     const userLanguage = detectUserLanguage(userText);
     
     addMessageToChat(userText, 'user');
@@ -841,13 +840,15 @@ async function sendMessage() {
     typingIndicator.style.display = 'block';
     chatContainer.scrollTop = chatContainer.scrollHeight;
 
-    // 根据用户语言动态设置系统提示
     conversationHistory = [
         { role: "system", content: getSystemPrompt(userLanguage) }
     ];
     
-    // 添加用户消息
     conversationHistory.push({ role: "user", content: userText });
+
+    let aiResponse = '';
+    let messageElement = null;
+    let contentDiv = null;
 
     try {
         const response = await fetch(API_URL, {
@@ -857,7 +858,10 @@ async function sendMessage() {
             },
             body: JSON.stringify({
                 model: "deepseek-chat",
-                messages: conversationHistory
+                messages: conversationHistory,
+                stream: true,
+                temperature: 0.7,
+                max_tokens: 2000
             })
         });
 
@@ -865,34 +869,118 @@ async function sendMessage() {
             throw new Error(`API请求失败: ${response.status}`);
         }
 
-        const data = await response.json();
-        const aiResponse = data.choices[0].message.content;
+        // 隐藏输入指示器并创建AI消息容器
+        typingIndicator.style.display = 'none';
+        messageElement = createAIMessageContainer();
+        contentDiv = messageElement.querySelector('.message-content');
 
-        // 记录AI回复的语言
-        lastAiMessageLanguage = userLanguage; // AI回复语言与用户提问语言一致
+        // 处理流式响应
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
         
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            
+            // 保留最后一个不完整的行
+            buffer = lines.pop() || '';
+            
+            for (const line of lines) {
+                const trimmedLine = line.trim();
+                if (!trimmedLine || trimmedLine === 'data: [DONE]') continue;
+                
+                if (trimmedLine.startsWith('data: ')) {
+                    try {
+                        const jsonStr = trimmedLine.slice(6);
+                        const json = JSON.parse(jsonStr);
+                        const content = json.choices?.[0]?.delta?.content;
+                        
+                        if (content) {
+                            aiResponse += content;
+                            // 实时更新显示
+                            let formattedText = aiResponse
+                                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                                .replace(/\n/g, '<br>');
+                            contentDiv.innerHTML = formattedText;
+                            chatContainer.scrollTop = chatContainer.scrollHeight;
+                        }
+                    } catch (e) {
+                        console.log('解析行出错:', trimmedLine, e);
+                    }
+                }
+            }
+        }
+
+        lastAiMessageLanguage = userLanguage;
+        lastAiMessage = aiResponse;
         conversationHistory.push({ role: "assistant", content: aiResponse });
-        const messageElement = addMessageToChat(aiResponse, 'ai');
         
-        // 添加朗读按钮，使用对应的语言
         addTTSToMessage(messageElement, aiResponse, userLanguage);
         
         const successMsg = userLanguage === 'zh' ? 'AI回复已收到' : 'AI response received';
         showStatus(successMsg, 'success');
 
     } catch (error) {
+        console.error('发送消息错误:', error);
         const errorMsg = error.message.includes('Failed to fetch') 
             ? '网络连接失败，请检查网络'
             : error.message;
         
-        const messageElement = addMessageToChat(`抱歉，我遇到了一个问题：${errorMsg}。`, 'ai');
-        addTTSToMessage(messageElement, `抱歉，我遇到了一个问题：${errorMsg}。`, 'zh');
+        if (!messageElement) {
+            messageElement = addMessageToChat(`抱歉，我遇到了一个问题：${errorMsg}。`, 'ai');
+            addTTSToMessage(messageElement, `抱歉，我遇到了一个问题：${errorMsg}。`, 'zh');
+        } else {
+            contentDiv.innerHTML = `抱歉，我遇到了一个问题：${errorMsg}。`;
+        }
         showStatus('请求出错: ' + errorMsg, 'error');
     } finally {
         typingIndicator.style.display = 'none';
         chatContainer.scrollTop = chatContainer.scrollHeight;
     }
 }
+
+// 创建AI消息容器（用于流式显示）
+function createAIMessageContainer() {
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'message ai-message';
+    
+    const iconDiv = document.createElement('div');
+    iconDiv.className = 'message-icon';
+    iconDiv.innerHTML = '<i class="fas fa-robot"></i>';
+    
+    const contentDiv = document.createElement('div');
+    contentDiv.className = 'message-content';
+    contentDiv.innerHTML = '';
+    
+    messageDiv.appendChild(iconDiv);
+    messageDiv.appendChild(contentDiv);
+    chatContainer.appendChild(messageDiv);
+    
+    return messageDiv;
+}
+
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'message ai-message';
+    
+    const iconDiv = document.createElement('div');
+    iconDiv.className = 'message-icon';
+    iconDiv.innerHTML = '<i class="fas fa-robot"></i>';
+    
+    const contentDiv = document.createElement('div');
+    contentDiv.className = 'message-content';
+    contentDiv.innerHTML = '';
+    
+    messageDiv.appendChild(iconDiv);
+    messageDiv.appendChild(contentDiv);
+    chatContainer.appendChild(messageDiv);
+    
+    return messageDiv;
+}
+
 
 // 将消息添加到聊天界面
 function addMessageToChat(text, sender) {

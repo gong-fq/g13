@@ -1,18 +1,24 @@
 # Grammar Guru - Netlify 部署版
 
-AI英语语法导师的 Netlify 公网部署版本
+AI英语语法导师的 Netlify 公网部署版本 - **已启用流式响应优化** ⚡
+
+## ✨ 最新优化
+
+- **流式响应（Streaming）** - AI回复逐字显示，几乎零等待
+- **即时反馈** - 用户提问后0.5秒内看到AI开始回复
+- **打字机效果** - 更自然流畅的交互体验
 
 ## 📁 项目结构
 
 ```
 grammar-guru-netlify/
-├── index.html              # 主页面（保持原样）
+├── index.html              # 主页面（已启用流式响应）
 ├── netlify.toml           # Netlify 配置
 ├── package.json           # 项目依赖
 ├── .gitignore            # Git 忽略文件
 ├── netlify/
 │   └── functions/
-│       └── chat.js       # Serverless API 代理（可选）
+│       └── chat.js       # Serverless API 代理（支持流式响应）
 └── README.md             # 本文件
 ```
 
@@ -54,7 +60,7 @@ grammar-guru-netlify/
 2. 将整个项目文件夹拖拽到页面上
 3. 等待自动部署完成
 
-## ⚙️ 环境变量配置（可选）
+## ⚙️ 环境变量配置（推荐）
 
 如果你想使用 serverless function 来隐藏 API key：
 
@@ -63,7 +69,9 @@ grammar-guru-netlify/
    - 添加 `DEEPSEEK_API_KEY` 变量
    - 值为你的 DeepSeek API key
 
-2. 修改 `index.html` 中的 API 调用：
+2. 将 `netlify/functions/chat.js` 放到项目的 `netlify/functions/` 目录下
+
+3. 修改 `index.html` 中的 API 调用：
    ```javascript
    // 将这行：
    const API_URL = 'https://api.deepseek.com/v1/chat/completions';
@@ -71,6 +79,8 @@ grammar-guru-netlify/
    // 改为：
    const API_URL = '/.netlify/functions/chat';
    ```
+
+**注意：** Serverless function 版本也已支持流式响应，保持最佳性能！
 
 ## 🔒 安全建议
 
@@ -107,9 +117,11 @@ npm run dev
 - ✅ 完全静态部署（无需服务器）
 - ✅ 自动 HTTPS
 - ✅ 全球 CDN 加速
+- ✅ **流式响应（Streaming）** - 新增 ⚡
 - ✅ 支持 Serverless Functions
 - ✅ 自动部署（Git 集成）
 - ✅ 支持自定义域名
+- ✅ 语音输入/输出功能
 
 ## 🔧 故障排查
 
@@ -122,14 +134,34 @@ npm run dev
 - 检查浏览器控制台错误信息
 - 如使用 function，确认环境变量已设置
 
+### 流式响应不工作
+- 确保使用的是最新版本的 `index.html`
+- 检查浏览器是否支持 Fetch API 和 ReadableStream
+- 查看浏览器控制台是否有错误信息
+
 ### 语音功能不工作
 - 确保网站使用 HTTPS（Netlify 自动提供）
 - 检查浏览器麦克风权限
+
+## ⚡ 性能优化说明
+
+**流式响应优化：**
+- 用户提问后立即看到AI开始回复（约0.5秒内）
+- 文字逐字显示，打字机效果
+- 不再需要等待完整响应生成
+- 用户体验提升显著
+
+**技术实现：**
+- 启用 DeepSeek API 的 `stream: true` 参数
+- 使用 Server-Sent Events (SSE) 接收数据
+- 实时解析和渲染内容
+- 优化的缓冲区处理避免解析错误
 
 ## 📞 支持
 
 遇到问题？
 - 查看 [Netlify 文档](https://docs.netlify.com)
+- 查看 [DeepSeek API 文档](https://platform.deepseek.com/docs)
 - 检查浏览器控制台日志
 - 查看 Netlify 部署日志
 
