@@ -963,24 +963,6 @@ function createAIMessageContainer() {
     return messageDiv;
 }
 
-    const messageDiv = document.createElement('div');
-    messageDiv.className = 'message ai-message';
-    
-    const iconDiv = document.createElement('div');
-    iconDiv.className = 'message-icon';
-    iconDiv.innerHTML = '<i class="fas fa-robot"></i>';
-    
-    const contentDiv = document.createElement('div');
-    contentDiv.className = 'message-content';
-    contentDiv.innerHTML = '';
-    
-    messageDiv.appendChild(iconDiv);
-    messageDiv.appendChild(contentDiv);
-    chatContainer.appendChild(messageDiv);
-    
-    return messageDiv;
-}
-
 
 // 将消息添加到聊天界面
 function addMessageToChat(text, sender) {
